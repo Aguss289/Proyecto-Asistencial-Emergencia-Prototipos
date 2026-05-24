@@ -1,0 +1,25 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Solicitud {
+  id       String    @id @default(cuid())
+  creadoEn DateTime  @default(now())
+  mensajes Mensaje[]
+}
+
+model Mensaje {
+  id          String    @id @default(cuid())
+  solicitudId String
+  solicitud   Solicitud @relation(fields: [solicitudId], references: [id])
+  autor       String
+  rol         String
+  tipo        String    @default("texto") // texto | imagen | video
+  contenido   String
+  creadoEn    DateTime  @default(now())
+}

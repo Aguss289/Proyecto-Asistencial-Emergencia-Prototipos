@@ -7,7 +7,7 @@
 CREATE TABLE IF NOT EXISTS usuarios (
   id            UUID        DEFAULT gen_random_uuid() PRIMARY KEY,
   nombre        TEXT        NOT NULL,
-  email         TEXT        UNIQUE NOT NULL,
+  cedula        TEXT        UNIQUE NOT NULL CHECK (cedula ~ '^\d{6,10}$'),
   password_hash TEXT        NOT NULL,
   rol           TEXT        NOT NULL CHECK (rol IN ('socio', 'medico', 'operador')),
   creado_en     TIMESTAMPTZ DEFAULT NOW()

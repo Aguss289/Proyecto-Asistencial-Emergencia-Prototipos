@@ -3,7 +3,7 @@ import jwt from "jsonwebtoken";
 /**
  * Middleware: authJWT
  * Verifica el token Bearer del header Authorization.
- * Si es válido, inyecta req.usuario con { id, email, rol }.
+ * Si es válido, inyecta req.usuario con { id, cedula, rol }.
  */
 export function authJWT(req, res, next) {
   const header = req.headers.authorization;
@@ -15,7 +15,7 @@ export function authJWT(req, res, next) {
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.usuario = { id: payload.id, nombre: payload.nombre, email: payload.email, rol: payload.rol };
+    req.usuario = { id: payload.id, nombre: payload.nombre, cedula: payload.cedula, rol: payload.rol };
     next();
   } catch {
     return res.status(401).json({ error: "Token inválido o expirado" });

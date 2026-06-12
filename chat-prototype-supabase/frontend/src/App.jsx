@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { useAuth } from "./hooks/useAuth.js";
 import { Login } from "./components/Login.jsx";
-import { CanalesList } from "./components/CanalesList.jsx";
+import { CasosList } from "./components/CasosList.jsx";
 import { Chat } from "./components/Chat.jsx";
 
 /**
- * App – enrutador de pantallas:
- *   LOGIN → CANALES → CHAT
+ * App – flujo caso-céntrico:
+ *   LOGIN → CASOS → CHAT
+ *
+ * El canal de chat siempre vive dentro de un Caso.
+ * Si el caso aún no tiene canal (ChatRequest pendiente),
+ * el ítem aparece deshabilitado en CasosList hasta que el socio acepte.
  */
 export default function App() {
   const { sesion, login, registrar, logout, error, cargando } = useAuth();
@@ -18,9 +22,9 @@ export default function App() {
 
   if (!canalActivo) {
     return (
-      <CanalesList
+      <CasosList
         sesion={sesion}
-        onSeleccionar={(canal) => setCanalActivo(canal)}
+        onAbrirChat={(canal) => setCanalActivo(canal)}
         onLogout={logout}
       />
     );

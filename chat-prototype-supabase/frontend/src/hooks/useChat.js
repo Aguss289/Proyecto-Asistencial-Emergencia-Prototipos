@@ -1,12 +1,25 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { supabase } from "../lib/supabase.js";
 import { apiGetHistorial, apiEnviarMensaje, apiSubirArchivo } from "../services/api.js";
 
+/**
+ * useChat — maneja mensajes en tiempo real y expone la interfaz de broadcast
+ * del canal Supabase para que useVideoCall la reutilice sin abrir una segunda
+ * conexión Realtime.
+ *
+ * Broadcast: todos los eventos de videollamada usan el event name "videocall"
+ * con un campo `type` en el payload para distinguirlos.
+ */
 export function useChat(canalId, token) {
   const [mensajes, setMensajes] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState(null);
   const ultimoIdRef = useRef(null);
+
+  // Ref al canal Supabase — compartido con useVideoCall vía sendBroadcast/setOnBroadcast
+  const channelRef = useRef(null);
+  // Callback registrado por useVideoCall para recibir eventos de videollamada
+  const onBroadcastRef = useRef(null);
 
   const cargarHistorial = async () => {
     try {
@@ -25,20 +38,18 @@ export function useChat(canalId, token) {
     cargarHistorial().finally(() => setCargando(false));
   }, [canalId, token]);
 
-  // Realtime — sin filtro server-side (más compatible con las keys nuevas de Supabase)
-  // El filtrado por canal_id se hace en el cliente
+  // Canal Supabase único: maneja mensajes (postgres_changes) Y videollamadas (broadcast)
   useEffect(() => {
     if (!canalId) return;
 
     const channel = supabase
-      .channel(`mensajes-sala-${canalId}-${Date.now()}`)
+      .channel(`canal-${canalId}`)
+      // ── Mensajes en tiempo real ──────────────────────────────────────────
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "mensajes" },
         ({ new: row }) => {
-          // Ignorar mensajes de otros canales
           if (row.canal_id !== canalId) return;
-
           setMensajes((prev) => {
             if (prev.find((m) => m.id === row.id)) return prev;
             const nuevo = {
@@ -56,34 +67,41 @@ export function useChat(canalId, token) {
           });
         }
       )
+      // ── Señalización de videollamada (broadcast) ─────────────────────────
+      // Todos los eventos de videollamada viajan bajo el event name "videocall"
+      // para no necesitar múltiples .on() ni una segunda conexión Realtime.
+      .on("broadcast", { event: "videocall" }, ({ payload }) => {
+        onBroadcastRef.current?.(payload);
+      })
       .subscribe((status) => {
         console.log("[Realtime] estado:", status);
       });
 
-    return () => supabase.removeChannel(channel);
+    channelRef.current = channel;
+
+    return () => {
+      supabase.removeChannel(channel);
+      channelRef.current = null;
+    };
   }, [canalId]);
 
-  // Polling de respaldo cada 4 segundos — garantiza que los mensajes lleguen
-  // aunque el Realtime falle o esté configurando
+  // Polling de respaldo cada 4 segundos
   useEffect(() => {
     if (!canalId || !token) return;
-
     const intervalo = setInterval(async () => {
       try {
         const data = await apiGetHistorial(canalId, token);
         setMensajes((prev) => {
-          // Solo actualiza si hay mensajes nuevos (evita re-renders innecesarios)
           if (data.length === prev.length) return prev;
           if (data.length > 0) ultimoIdRef.current = data[data.length - 1].id;
           return data;
         });
-      } catch {
-        // silencioso
-      }
+      } catch { /* silencioso */ }
     }, 4000);
-
     return () => clearInterval(intervalo);
   }, [canalId, token]);
+
+  // ── Mensajes ─────────────────────────────────────────────────────────────
 
   const enviarTexto = async (contenido) => {
     try {
@@ -105,5 +123,27 @@ export function useChat(canalId, token) {
     }
   };
 
-  return { mensajes, cargando, error, enviarTexto, enviarArchivo };
+  // ── Interfaz de broadcast para useVideoCall ───────────────────────────────
+
+  /**
+   * Envía un evento de videollamada por el canal compartido.
+   * useVideoCall llama a esto en lugar de tener su propio channel.send().
+   */
+  const sendBroadcast = useCallback((type, payload) => {
+    channelRef.current?.send({
+      type: "broadcast",
+      event: "videocall",
+      payload: { type, ...payload },
+    });
+  }, []);
+
+  /**
+   * useVideoCall registra aquí su handler para recibir eventos de videollamada.
+   * Usar un ref evita re-suscripciones al canal cuando cambia el callback.
+   */
+  const setOnBroadcast = useCallback((fn) => {
+    onBroadcastRef.current = fn;
+  }, []);
+
+  return { mensajes, cargando, error, enviarTexto, enviarArchivo, sendBroadcast, setOnBroadcast };
 }

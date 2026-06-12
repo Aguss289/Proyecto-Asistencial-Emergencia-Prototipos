@@ -6,10 +6,10 @@
 export class Usuario {
   static ROLES = ["socio", "medico", "operador"];
 
-  constructor({ id, nombre, email, rol, creadoEn }) {
+  constructor({ id, nombre, cedula, rol, creadoEn }) {
     this.id = id;
     this.nombre = nombre;
-    this.email = email;
+    this.cedula = cedula;
     this.rol = rol;
     this.creadoEn = creadoEn;
   }
@@ -18,16 +18,16 @@ export class Usuario {
     return Usuario.ROLES.includes(rol);
   }
 
-  static validarEmail(email) {
-    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  static validarCedula(cedula) {
+    // Solo números, entre 6 y 10 dígitos
+    return /^\d{6,10}$/.test(String(cedula));
   }
 
   toPublic() {
-    // Retorna los campos seguros para enviar al cliente (sin password_hash)
     return {
       id: this.id,
       nombre: this.nombre,
-      email: this.email,
+      cedula: this.cedula,
       rol: this.rol,
       creadoEn: this.creadoEn,
     };

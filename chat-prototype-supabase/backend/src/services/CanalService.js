@@ -78,7 +78,7 @@ export class CanalService {
   async getMiembros(canalId) {
     const { data, error } = await supabase
       .from("canal_miembros")
-      .select("usuarios(id, nombre, email, rol)")
+      .select("usuarios(id, nombre, cedula, rol)")
       .eq("canal_id", canalId);
 
     if (error) throw new Error(error.message);
